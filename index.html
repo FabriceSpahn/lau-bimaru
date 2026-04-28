@@ -1,386 +1,671 @@
-import { useMemo, useState } from "react";
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rätsel Nr. 3 - Bimaru Challenge</title>
+  <style>
+    :root {
+      --stone-50: #fafaf9;
+      --stone-100: #f5f5f4;
+      --stone-200: #e7e5e4;
+      --stone-300: #d6d3d1;
+      --stone-600: #57534e;
+      --stone-700: #44403c;
+      --stone-800: #292524;
+      --stone-900: #1c1917;
+      --sky-50: #f0f9ff;
+      --sky-300: #7dd3fc;
+      --blue-400: #60a5fa;
+      --blue-500: #3b82f6;
+      --red-500: #ef4444;
+      --red-600: #dc2626;
+    }
 
-const GRID = 12;
-const WORDS = ["MICRO", "ROASTERY", "AND", "SPECIALTY", "COFFEE", "SHOP", "IN", "LOCARNO"];
+    * {
+      box-sizing: border-box;
+    }
 
-const ships = [
-  { word: "SPECIALTY", cells: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [0, 6], [0, 7], [0, 8]] },
-  { word: "ROASTERY", cells: [[3, 2], [3, 3], [3, 4], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9]] },
-  { word: "LOCARNO", cells: [[6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [6, 6]] },
-  { word: "COFFEE", cells: [[9, 5], [9, 6], [9, 7], [9, 8], [9, 9], [9, 10]] },
-  { word: "MICRO", cells: [[0, 11], [1, 11], [2, 11], [3, 11], [4, 11]] },
-  { word: "SHOP", cells: [[8, 0], [9, 0], [10, 0], [11, 0]] },
-  { word: "AND", cells: [[9, 3], [10, 3], [11, 3]] },
-  { word: "IN", cells: [[11, 8], [11, 9]] },
-];
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #fff;
+      color: var(--stone-900);
+    }
 
-const givens = [
-  [0, 2], [0, 6], [0, 11],
-  [3, 4], [3, 8],
-  [6, 1], [6, 5],
-  [9, 7], [11, 0], [11, 8],
+    .page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+      background: #fff;
+    }
 
-  // zusätzliche Buchstaben-Hilfe auf echten Schiffsfeldern
-  [3, 2], [8, 0], [9, 10]
-];
+    main {
+      width: 100%;
+      max-width: 72rem;
+      padding: 0.5rem;
+      background: #fff;
+    }
 
-const waterGivens = [
-  [0, 9], [0, 10],
-  [1, 0], [1, 10],
-  [2, 0], [2, 10],
-  [3, 0], [3, 10],
-  [4, 1], [4, 9],
-  [5, 0], [5, 11],
-  [6, 7], [6, 10],
-  [7, 1], [7, 9],
-  [8, 2], [8, 10],
-  [9, 1], [9, 11],
-  [10, 1], [10, 10],
-  [11, 1], [11, 10],
+    .header {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
 
-  // gezielte zusätzliche Hilfe, nur auf echten Wasserfeldern
-  [1, 4], [2, 6], [4, 5], [5, 8], [10, 6]
-];
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 3rem);
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
 
-function key(row, col) {
-  return `${row}-${col}`;
-}
+    .subtitle {
+      margin: 0.5rem 0 0;
+      color: var(--stone-600);
+      font-size: clamp(1rem, 3vw, 1.25rem);
+    }
 
-function makeSolution() {
-  const map = new Map();
-  ships.forEach((ship, shipIndex) => {
-    ship.cells.forEach(([row, col], partIndex) => {
-      map.set(key(row, col), {
-        letter: ship.word[partIndex],
-        word: ship.word,
-        shipIndex,
-        partIndex,
-        size: ship.cells.length,
-      });
-    });
-  });
-  return map;
-}
+    .info {
+      margin-bottom: 1rem;
+      border: 1px solid var(--stone-200);
+      border-radius: 1rem;
+      padding: 0.75rem;
+      text-align: center;
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--stone-800);
+    }
 
-function counts(solution, axis) {
-  return Array.from({ length: GRID }, (_, index) => {
-    let total = 0;
-    solution.forEach((_, cellKey) => {
-      const [row, col] = cellKey.split("-").map(Number);
-      if ((axis === "row" && row === index) || (axis === "col" && col === index)) total += 1;
-    });
-    return total;
-  });
-}
+    .controls {
+      margin-bottom: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
 
-function findPlayerShips(board) {
-  const seen = new Set();
-  const found = [];
+    button {
+      font: inherit;
+    }
 
-  for (let row = 0; row < GRID; row += 1) {
-    for (let col = 0; col < GRID; col += 1) {
-      const cellKey = key(row, col);
-      if (seen.has(cellKey) || board[cellKey] !== "ship") continue;
+    .control-button {
+      border: 0;
+      border-radius: 999px;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 150ms ease, transform 150ms ease;
+    }
 
-      const stack = [[row, col]];
-      const group = [];
-      seen.add(cellKey);
+    .control-button:active {
+      transform: scale(0.98);
+    }
 
-      while (stack.length) {
-        const [r, c] = stack.pop();
-        group.push([r, c]);
-        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dr, dc]) => {
-          const nr = r + dr;
-          const nc = c + dc;
-          const nk = key(nr, nc);
-          if (nr >= 0 && nr < GRID && nc >= 0 && nc < GRID && board[nk] === "ship" && !seen.has(nk)) {
-            seen.add(nk);
-            stack.push([nr, nc]);
-          }
+    .primary {
+      color: #fff;
+      background: var(--stone-900);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    .primary:hover {
+      background: var(--stone-700);
+    }
+
+    .secondary {
+      color: var(--stone-800);
+      background: var(--stone-200);
+    }
+
+    .secondary:hover {
+      background: var(--stone-300);
+    }
+
+    #message {
+      margin: 0 0 1rem;
+      text-align: center;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--stone-700);
+    }
+
+    .grid {
+      width: 100%;
+      max-width: min(42rem, 94vw);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 24px repeat(12, minmax(0, 1fr)) 24px;
+      gap: 1px;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .count {
+      height: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.375rem;
+      background: #fff;
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--stone-900);
+    }
+
+    .count.side {
+      height: auto;
+      min-height: 1.5rem;
+    }
+
+    .count.wrong {
+      color: var(--red-600);
+      box-shadow: 0 0 0 2px var(--red-500);
+    }
+
+    .cell {
+      aspect-ratio: 1 / 1;
+      width: 100%;
+      border: 1px solid var(--stone-300);
+      border-radius: 0.375rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      cursor: pointer;
+      transition: background-color 150ms ease;
+      padding: 0;
+    }
+
+    .cell:hover {
+      background: var(--stone-50);
+    }
+
+    .cell:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--stone-800);
+    }
+
+    .cell.given {
+      border-color: var(--stone-900);
+      background: #fff;
+    }
+
+    .cell.water-given {
+      border-color: var(--sky-300);
+      background: var(--sky-50);
+    }
+
+    .mark {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .water-mark {
+      width: 72%;
+      height: 72%;
+      border-radius: 0.375rem;
+      background: var(--blue-400);
+      font-size: 1rem;
+    }
+
+    .water-given .water-mark {
+      background: var(--blue-500);
+    }
+
+    .ship-mark {
+      width: 65%;
+      height: 65%;
+      background: var(--stone-800);
+      font-size: 0.55rem;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+    }
+
+    .given .ship-mark {
+      background: var(--stone-900);
+    }
+
+    .rounded-full { border-radius: 999px; }
+    .rounded-md { border-radius: 0.375rem; }
+    .rounded-l-full { border-top-left-radius: 999px; border-bottom-left-radius: 999px; }
+    .rounded-r-full { border-top-right-radius: 999px; border-bottom-right-radius: 999px; }
+    .rounded-t-full { border-top-left-radius: 999px; border-top-right-radius: 999px; }
+    .rounded-b-full { border-bottom-left-radius: 999px; border-bottom-right-radius: 999px; }
+    .rounded-l-md { border-top-left-radius: 0.375rem; border-bottom-left-radius: 0.375rem; }
+    .rounded-r-md { border-top-right-radius: 0.375rem; border-bottom-right-radius: 0.375rem; }
+    .rounded-t-md { border-top-left-radius: 0.375rem; border-top-right-radius: 0.375rem; }
+    .rounded-b-md { border-bottom-left-radius: 0.375rem; border-bottom-right-radius: 0.375rem; }
+
+    @media (min-width: 640px) {
+      .page { padding: 1.5rem; }
+      main { padding: 2rem; }
+      .header { margin-bottom: 1.25rem; }
+      .grid { gap: 2px; }
+      .count {
+        height: 1.75rem;
+        font-size: 0.875rem;
+      }
+      .water-mark { font-size: 1.125rem; }
+      .ship-mark { font-size: 0.875rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page" id="page">
+    <main>
+      <div class="header">
+        <h1>Rätsel Nr. 3</h1>
+        <p class="subtitle">Bimaru Challenge</p>
+      </div>
+
+      <div class="info" id="ship-count"></div>
+
+      <div class="controls">
+        <button class="control-button primary" id="check-button" type="button">Prüfen</button>
+        <button class="control-button secondary" id="reset-button" type="button">Zurücksetzen</button>
+      </div>
+
+      <p id="message"></p>
+      <div class="grid" id="grid"></div>
+    </main>
+  </div>
+
+  <script>
+    const GRID = 12;
+    const WORDS = ["MICRO", "ROASTERY", "AND", "SPECIALTY", "COFFEE", "SHOP", "IN", "LOCARNO"];
+
+    const ships = [
+      { word: "SPECIALTY", cells: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [0, 6], [0, 7], [0, 8]] },
+      { word: "ROASTERY", cells: [[3, 2], [3, 3], [3, 4], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9]] },
+      { word: "LOCARNO", cells: [[6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [6, 6]] },
+      { word: "COFFEE", cells: [[9, 5], [9, 6], [9, 7], [9, 8], [9, 9], [9, 10]] },
+      { word: "MICRO", cells: [[0, 11], [1, 11], [2, 11], [3, 11], [4, 11]] },
+      { word: "SHOP", cells: [[8, 0], [9, 0], [10, 0], [11, 0]] },
+      { word: "AND", cells: [[9, 3], [10, 3], [11, 3]] },
+      { word: "IN", cells: [[11, 8], [11, 9]] },
+    ];
+
+    const givens = [
+      [0, 2], [0, 6], [0, 11],
+      [3, 4], [3, 8],
+      [6, 1], [6, 5],
+      [9, 7], [11, 0], [11, 8],
+      [3, 2], [8, 0], [9, 10]
+    ];
+
+    const waterGivens = [
+      [0, 9], [0, 10],
+      [1, 0], [1, 10],
+      [2, 0], [2, 10],
+      [3, 0], [3, 10],
+      [4, 1], [4, 9],
+      [5, 0], [5, 11],
+      [6, 7], [6, 10],
+      [7, 1], [7, 9],
+      [8, 2], [8, 10],
+      [9, 1], [9, 11],
+      [10, 1], [10, 10],
+      [11, 1], [11, 10],
+      [1, 4], [2, 6], [4, 5], [5, 8], [10, 6]
+    ];
+
+    const gridElement = document.getElementById("grid");
+    const messageElement = document.getElementById("message");
+    const shipCountElement = document.getElementById("ship-count");
+    const checkButton = document.getElementById("check-button");
+    const resetButton = document.getElementById("reset-button");
+    const pageElement = document.getElementById("page");
+
+    let board = makeInitialBoard();
+    let solved = false;
+    let checked = false;
+    let paintMode = null;
+    let paintedCells = new Set();
+
+    const solution = makeSolution();
+    const rowCounts = counts(solution, "row");
+    const colCounts = counts(solution, "col");
+    const givenSet = new Set(givens.map(([row, col]) => key(row, col)));
+    const waterGivenSet = new Set(waterGivens.map(([row, col]) => key(row, col)));
+
+    shipCountElement.textContent = `Schiffe: ${ships.length}`;
+    setMessage("Einige Wasserfelder sind schon gesetzt. Ziehe mit gedrückter Maus oder dem Finger über mehrere Felder.");
+    renderGrid();
+
+    checkButton.addEventListener("click", checkBoard);
+    resetButton.addEventListener("click", resetBoard);
+    pageElement.addEventListener("mouseup", stopPaint);
+    pageElement.addEventListener("mouseleave", stopPaint);
+    pageElement.addEventListener("touchend", stopPaint);
+    pageElement.addEventListener("touchcancel", stopPaint);
+    gridElement.addEventListener("touchmove", handleTouchMove, { passive: false });
+
+    function key(row, col) {
+      return `${row}-${col}`;
+    }
+
+    function makeSolution() {
+      const map = new Map();
+      ships.forEach((ship, shipIndex) => {
+        ship.cells.forEach(([row, col], partIndex) => {
+          map.set(key(row, col), {
+            letter: ship.word[partIndex],
+            word: ship.word,
+            shipIndex,
+            partIndex,
+            size: ship.cells.length,
+          });
         });
-      }
-      found.push(group);
+      });
+      return map;
     }
-  }
 
-  return found;
-}
-
-function isStraight(ship) {
-  const rows = new Set(ship.map(([r]) => r));
-  const cols = new Set(ship.map(([, c]) => c));
-  return rows.size === 1 || cols.size === 1;
-}
-
-function hasDiagonalTouch(board) {
-  for (let row = 0; row < GRID; row += 1) {
-    for (let col = 0; col < GRID; col += 1) {
-      if (board[key(row, col)] !== "ship") continue;
-      for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
-        const nr = row + dr;
-        const nc = col + dc;
-        if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID) continue;
-        if (board[key(nr, nc)] === "ship") return true;
-      }
+    function makeInitialBoard() {
+      const initial = {};
+      givens.forEach(([row, col]) => {
+        initial[key(row, col)] = "ship";
+      });
+      waterGivens.forEach(([row, col]) => {
+        initial[key(row, col)] = "water";
+      });
+      return initial;
     }
-  }
-  return false;
-}
 
-function solutionPartShape(part) {
-  if (!part || part.size === 1) return "rounded-full";
-  const ship = ships[part.shipIndex];
-  const first = ship.cells[0];
-  const last = ship.cells[ship.cells.length - 1];
-  const horizontal = first[0] === last[0];
-  if (part.partIndex > 0 && part.partIndex < part.size - 1) return "rounded-md";
-  if (horizontal && part.partIndex === 0) return "rounded-l-full rounded-r-md";
-  if (horizontal && part.partIndex === part.size - 1) return "rounded-r-full rounded-l-md";
-  if (!horizontal && part.partIndex === 0) return "rounded-t-full rounded-b-md";
-  return "rounded-b-full rounded-t-md";
-}
+    function counts(solutionMap, axis) {
+      return Array.from({ length: GRID }, (_, index) => {
+        let total = 0;
+        solutionMap.forEach((_, cellKey) => {
+          const [row, col] = cellKey.split("-").map(Number);
+          if ((axis === "row" && row === index) || (axis === "col" && col === index)) total += 1;
+        });
+        return total;
+      });
+    }
 
-function playerPartShape(board, row, col) {
-  const neighbors = {
-    up: board[key(row - 1, col)] === "ship",
-    down: board[key(row + 1, col)] === "ship",
-    left: board[key(row, col - 1)] === "ship",
-    right: board[key(row, col + 1)] === "ship",
-  };
+    function visibleState(row, col) {
+      return board[key(row, col)] || "empty";
+    }
 
-  const count = Object.values(neighbors).filter(Boolean).length;
-  if (count === 0) return "rounded-full";
+    function nextState(value) {
+      if (value === "empty") return "water";
+      if (value === "water") return "ship";
+      return "empty";
+    }
 
-  if (neighbors.left || neighbors.right) {
-    if (neighbors.left && neighbors.right) return "rounded-md";
-    if (neighbors.right) return "rounded-l-full rounded-r-md";
-    return "rounded-r-full rounded-l-md";
-  }
+    function setMessage(text) {
+      messageElement.textContent = text;
+    }
 
-  if (neighbors.up && neighbors.down) return "rounded-md";
-  if (neighbors.down) return "rounded-t-full rounded-b-md";
-  return "rounded-b-full rounded-t-md";
-}
+    function applyState(row, col, state) {
+      const cellKey = key(row, col);
+      if (givenSet.has(cellKey) || waterGivenSet.has(cellKey) || solved) return;
 
-export default function BimaruCoffeeLocarnoMuyu() {
-  const solution = useMemo(() => makeSolution(), []);
-  const rowCounts = useMemo(() => counts(solution, "row"), [solution]);
-  const colCounts = useMemo(() => counts(solution, "col"), [solution]);
-  const givenSet = useMemo(() => new Set(givens.map(([row, col]) => key(row, col))), []);
-  const waterGivenSet = useMemo(() => new Set(waterGivens.map(([row, col]) => key(row, col))), []);
+      if (state === "empty") delete board[cellKey];
+      else board[cellKey] = state;
 
-  const initialBoard = useMemo(() => {
-    const board = {};
-    givens.forEach(([row, col]) => {
-      board[key(row, col)] = "ship";
-    });
-    waterGivens.forEach(([row, col]) => {
-      board[key(row, col)] = "water";
-    });
-    return board;
-  }, []);
+      renderGrid();
+    }
 
-  const [board, setBoard] = useState(initialBoard);
-  const [message, setMessage] = useState("Einige Wasserfelder sind schon gesetzt. Ziehe mit gedrückter Maus oder dem Finger über mehrere Felder.");
-  const [solved, setSolved] = useState(false);
-  const [paintMode, setPaintMode] = useState(null);
-  const [paintedCells, setPaintedCells] = useState(new Set());
-  const [checked, setChecked] = useState(false);
+    function startPaint(row, col, event) {
+      event.preventDefault();
+      const cellKey = key(row, col);
+      if (givenSet.has(cellKey) || waterGivenSet.has(cellKey) || solved) return;
 
-  function visibleState(row, col) {
-    return board[key(row, col)] || "empty";
-  }
+      const mode = nextState(visibleState(row, col));
+      paintMode = mode;
+      paintedCells = new Set([cellKey]);
+      applyState(row, col, mode);
+    }
 
-  function nextState(value) {
-    if (value === "empty") return "water";
-    if (value === "water") return "ship";
-    return "empty";
-  }
+    function enterPaint(row, col) {
+      const cellKey = key(row, col);
+      if (!paintMode || paintedCells.has(cellKey) || givenSet.has(cellKey) || waterGivenSet.has(cellKey) || solved) return;
 
-  function applyState(row, col, state) {
-    const cellKey = key(row, col);
-    if (givenSet.has(cellKey) || waterGivenSet.has(cellKey) || solved) return;
-    setBoard((current) => {
-      const next = { ...current };
-      if (state === "empty") delete next[cellKey];
-      else next[cellKey] = state;
-      return next;
-    });
-  }
+      paintedCells.add(cellKey);
+      applyState(row, col, paintMode);
+    }
 
-  function startPaint(row, col, event) {
-    event.preventDefault();
-    const cellKey = key(row, col);
-    if (givenSet.has(cellKey) || waterGivenSet.has(cellKey) || solved) return;
-    const mode = nextState(visibleState(row, col));
-    setPaintMode(mode);
-    setPaintedCells(new Set([cellKey]));
-    applyState(row, col, mode);
-  }
+    function stopPaint() {
+      paintMode = null;
+      paintedCells = new Set();
+    }
 
-  function enterPaint(row, col) {
-    const cellKey = key(row, col);
-    if (!paintMode || paintedCells.has(cellKey) || givenSet.has(cellKey) || waterGivenSet.has(cellKey) || solved) return;
-    setPaintedCells((current) => new Set([...current, cellKey]));
-    applyState(row, col, paintMode);
-  }
+    function handleTouchMove(event) {
+      if (!paintMode) return;
+      event.preventDefault();
+      const touch = event.touches[0];
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      const cell = target && target.closest ? target.closest("[data-row][data-col]") : null;
+      if (!cell) return;
+      enterPaint(Number(cell.dataset.row), Number(cell.dataset.col));
+    }
 
-  function stopPaint() {
-    setPaintMode(null);
-    setPaintedCells(new Set());
-  }
+    function resetBoard() {
+      board = makeInitialBoard();
+      solved = false;
+      checked = false;
+      setMessage("Zurückgesetzt. Die vorgegebenen Kreise und Wasserfelder bleiben stehen.");
+      renderGrid();
+    }
 
-  function handleTouchMove(event) {
-    if (!paintMode) return;
-    const touch = event.touches[0];
-    const target = document.elementFromPoint(touch.clientX, touch.clientY);
-    const cell = target?.closest?.("[data-row][data-col]");
-    if (!cell) return;
-    enterPaint(Number(cell.dataset.row), Number(cell.dataset.col));
-  }
+    function checkBoard() {
+      checked = true;
+      const playerShips = findPlayerShips(board);
+      const targetLengths = WORDS.map((word) => word.length).sort((a, b) => a - b).join(",");
+      const playerLengths = playerShips.map((group) => group.length).sort((a, b) => a - b).join(",");
 
-  function resetBoard() {
-    setBoard(initialBoard);
-    setSolved(false);
-    setChecked(false);
-    setMessage("Zurückgesetzt. Die vorgegebenen Kreise und Wasserfelder bleiben stehen.");
-  }
+      const rowOk = rowCounts.every((target, row) => currentRowCount(row) === target);
+      const colOk = colCounts.every((target, col) => currentColCount(col) === target);
 
-  function checkBoard() {
-    setChecked(true);
-    const playerShips = findPlayerShips(board);
-    const targetLengths = WORDS.map((word) => word.length).sort((a, b) => a - b).join(",");
-    const playerLengths = playerShips.map((group) => group.length).sort((a, b) => a - b).join(",");
+      const exactSolution = Array.from({ length: GRID * GRID }, (_, index) => {
+        const row = Math.floor(index / GRID);
+        const col = index % GRID;
+        const k = key(row, col);
+        return (solution.has(k) && board[k] === "ship") || (!solution.has(k) && board[k] !== "ship");
+      }).every(Boolean);
 
-    const rowOk = rowCounts.every((target, row) => {
+      if (exactSolution) {
+        solved = true;
+        setMessage("Gelöst! Jetzt werden die Buchstaben sichtbar.");
+      } else if (!rowOk || !colOk) {
+        setMessage("Noch nicht: Mindestens eine Zeilen- oder Spaltenzahl stimmt nicht.");
+      } else if (playerLengths !== targetLengths || !playerShips.every(isStraight)) {
+        setMessage("Noch nicht: Die Wörter müssen als gerade, zusammenhängende Schiffe gelegt sein.");
+      } else if (hasDiagonalTouch(board)) {
+        setMessage("Noch nicht: Es gibt diagonale Berührungen.");
+      } else {
+        setMessage("Fast: Die Form stimmt, aber die genaue Position der Wörter noch nicht.");
+      }
+
+      renderGrid();
+    }
+
+    function currentRowCount(row) {
       let total = 0;
-      for (let col = 0; col < GRID; col += 1) if (board[key(row, col)] === "ship") total += 1;
-      return total === target;
-    });
+      for (let col = 0; col < GRID; col += 1) {
+        if (board[key(row, col)] === "ship") total += 1;
+      }
+      return total;
+    }
 
-    const colOk = colCounts.every((target, col) => {
+    function currentColCount(col) {
       let total = 0;
-      for (let row = 0; row < GRID; row += 1) if (board[key(row, col)] === "ship") total += 1;
-      return total === target;
-    });
+      for (let row = 0; row < GRID; row += 1) {
+        if (board[key(row, col)] === "ship") total += 1;
+      }
+      return total;
+    }
 
-    const exactSolution = Array.from({ length: GRID * GRID }, (_, index) => {
-      const row = Math.floor(index / GRID);
-      const col = index % GRID;
+    function findPlayerShips(boardState) {
+      const seen = new Set();
+      const found = [];
+
+      for (let row = 0; row < GRID; row += 1) {
+        for (let col = 0; col < GRID; col += 1) {
+          const cellKey = key(row, col);
+          if (seen.has(cellKey) || boardState[cellKey] !== "ship") continue;
+
+          const stack = [[row, col]];
+          const group = [];
+          seen.add(cellKey);
+
+          while (stack.length) {
+            const [r, c] = stack.pop();
+            group.push([r, c]);
+            [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dr, dc]) => {
+              const nr = r + dr;
+              const nc = c + dc;
+              const nk = key(nr, nc);
+              if (nr >= 0 && nr < GRID && nc >= 0 && nc < GRID && boardState[nk] === "ship" && !seen.has(nk)) {
+                seen.add(nk);
+                stack.push([nr, nc]);
+              }
+            });
+          }
+
+          found.push(group);
+        }
+      }
+
+      return found;
+    }
+
+    function isStraight(ship) {
+      const rows = new Set(ship.map(([r]) => r));
+      const cols = new Set(ship.map(([, c]) => c));
+      return rows.size === 1 || cols.size === 1;
+    }
+
+    function hasDiagonalTouch(boardState) {
+      for (let row = 0; row < GRID; row += 1) {
+        for (let col = 0; col < GRID; col += 1) {
+          if (boardState[key(row, col)] !== "ship") continue;
+          for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+            const nr = row + dr;
+            const nc = col + dc;
+            if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID) continue;
+            if (boardState[key(nr, nc)] === "ship") return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function solutionPartShape(part) {
+      if (!part || part.size === 1) return "rounded-full";
+      const ship = ships[part.shipIndex];
+      const first = ship.cells[0];
+      const last = ship.cells[ship.cells.length - 1];
+      const horizontal = first[0] === last[0];
+
+      if (part.partIndex > 0 && part.partIndex < part.size - 1) return "rounded-md";
+      if (horizontal && part.partIndex === 0) return "rounded-l-full rounded-r-md";
+      if (horizontal && part.partIndex === part.size - 1) return "rounded-r-full rounded-l-md";
+      if (!horizontal && part.partIndex === 0) return "rounded-t-full rounded-b-md";
+      return "rounded-b-full rounded-t-md";
+    }
+
+    function playerPartShape(row, col) {
+      const neighbors = {
+        up: board[key(row - 1, col)] === "ship",
+        down: board[key(row + 1, col)] === "ship",
+        left: board[key(row, col - 1)] === "ship",
+        right: board[key(row, col + 1)] === "ship",
+      };
+
+      const count = Object.values(neighbors).filter(Boolean).length;
+      if (count === 0) return "rounded-full";
+
+      if (neighbors.left || neighbors.right) {
+        if (neighbors.left && neighbors.right) return "rounded-md";
+        if (neighbors.right) return "rounded-l-full rounded-r-md";
+        return "rounded-r-full rounded-l-md";
+      }
+
+      if (neighbors.up && neighbors.down) return "rounded-md";
+      if (neighbors.down) return "rounded-t-full rounded-b-md";
+      return "rounded-b-full rounded-t-md";
+    }
+
+    function renderGrid() {
+      gridElement.innerHTML = "";
+
+      gridElement.appendChild(emptyDiv());
+      colCounts.forEach((count, col) => {
+        gridElement.appendChild(countDiv(count, checked && currentColCount(col) !== count));
+      });
+      gridElement.appendChild(emptyDiv());
+
+      for (let row = 0; row < GRID; row += 1) {
+        gridElement.appendChild(countDiv(rowCounts[row], checked && currentRowCount(row) !== rowCounts[row], true));
+
+        for (let col = 0; col < GRID; col += 1) {
+          gridElement.appendChild(cellButton(row, col));
+        }
+
+        gridElement.appendChild(countDiv(rowCounts[row], checked && currentRowCount(row) !== rowCounts[row], true));
+      }
+
+      gridElement.appendChild(emptyDiv());
+      colCounts.forEach((count, col) => {
+        gridElement.appendChild(countDiv(count, checked && currentColCount(col) !== count));
+      });
+      gridElement.appendChild(emptyDiv());
+    }
+
+    function emptyDiv() {
+      return document.createElement("div");
+    }
+
+    function countDiv(count, wrong, side = false) {
+      const div = document.createElement("div");
+      div.className = `count${side ? " side" : ""}${wrong ? " wrong" : ""}`;
+      div.textContent = count;
+      return div;
+    }
+
+    function cellButton(row, col) {
+      const state = visibleState(row, col);
       const k = key(row, col);
-      return (solution.has(k) && board[k] === "ship") || (!solution.has(k) && board[k] !== "ship");
-    }).every(Boolean);
+      const solvedCell = solution.get(k);
+      const isGiven = givenSet.has(k);
+      const isWaterGiven = waterGivenSet.has(k);
 
-    if (exactSolution) {
-      setSolved(true);
-      setMessage("Gelöst! Jetzt werden die Buchstaben sichtbar.");
-    } else if (!rowOk || !colOk) {
-      setMessage("Noch nicht: Mindestens eine Zeilen- oder Spaltenzahl stimmt nicht.");
-    } else if (playerLengths !== targetLengths || !playerShips.every(isStraight)) {
-      setMessage("Noch nicht: Die Wörter müssen als gerade, zusammenhängende Schiffe gelegt sein.");
-    } else if (hasDiagonalTouch(board)) {
-      setMessage("Noch nicht: Es gibt diagonale Berührungen.");
-    } else {
-      setMessage("Fast: Die Form stimmt, aber die genaue Position der Wörter noch nicht.");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `cell${isGiven ? " given" : ""}${isWaterGiven ? " water-given" : ""}`;
+      button.dataset.row = row;
+      button.dataset.col = col;
+      button.setAttribute("aria-label", `Zeile ${row + 1}, Spalte ${col + 1}`);
+
+      button.addEventListener("mousedown", (event) => startPaint(row, col, event));
+      button.addEventListener("mouseenter", () => enterPaint(row, col));
+      button.addEventListener("touchstart", (event) => startPaint(row, col, event), { passive: false });
+
+      if (state === "water") {
+        const span = document.createElement("span");
+        span.className = "mark water-mark";
+        span.textContent = "~";
+        button.appendChild(span);
+      }
+
+      if (state === "ship") {
+        const span = document.createElement("span");
+        const shape = isGiven ? solutionPartShape(solvedCell) : playerPartShape(row, col);
+        span.className = `mark ship-mark ${shape}`;
+        span.textContent = solved && solvedCell && solvedCell.letter ? solvedCell.letter : "";
+        button.appendChild(span);
+      }
+
+      return button;
     }
-  }
-
-  return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-2 sm:p-6" onMouseUp={stopPaint} onMouseLeave={stopPaint} onTouchEnd={stopPaint} onTouchCancel={stopPaint}>
-      <main className="w-full max-w-6xl bg-white p-2 sm:p-8">
-        <div className="text-center mb-4 sm:mb-5">
-          <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-stone-900">Rätsel Nr. 3</h1>
-          <p className="mt-2 text-base sm:text-xl text-stone-600">Bimaru Challenge</p>
-        </div>
-
-        <div className="mb-4 rounded-2xl border border-stone-200 bg-white p-3 text-center text-sm font-semibold text-stone-800">
-          Schiffe: {ships.length}
-        </div>
-
-        <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
-          <button onClick={checkBoard} className="rounded-full bg-stone-900 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-stone-700 transition">
-            Prüfen
-          </button>
-          <button onClick={resetBoard} className="rounded-full bg-stone-200 px-5 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-300 transition">
-            Zurücksetzen
-          </button>
-        </div>
-
-        <p className="mb-4 text-center text-sm font-medium text-stone-700">{message}</p>
-
-        <div
-          className="mx-auto grid w-full max-w-[94vw] sm:max-w-2xl gap-[1px] sm:gap-[2px] select-none touch-none"
-          style={{ gridTemplateColumns: `24px repeat(${GRID}, minmax(0, 1fr)) 24px` }}
-          onTouchMove={handleTouchMove}
-        >
-          <div />
-          {colCounts.map((count, col) => {
-            let current = 0;
-            for (let row = 0; row < GRID; row += 1) if (board[key(row, col)] === "ship") current += 1;
-            const wrong = checked && current !== count;
-            return (
-              <div key={`top-${col}`} className={`flex h-6 sm:h-7 items-center justify-center rounded-md text-xs sm:text-sm font-bold bg-white ${wrong ? "text-red-600 ring-2 ring-red-500" : "text-stone-900"}`}>
-                {count}
-              </div>
-            );
-          })}
-          <div />
-
-          {Array.from({ length: GRID }, (_, row) => (
-            <>
-              <div key={`left-${row}`} className={`flex items-center justify-center rounded-md text-xs sm:text-sm font-bold bg-white ${checked && Array.from({ length: GRID }, (_, col) => board[key(row, col)] === "ship" ? 1 : 0).reduce((a, b) => a + b, 0) !== rowCounts[row] ? "text-red-600 ring-2 ring-red-500" : "text-stone-900"}`}>
-                {rowCounts[row]}
-              </div>
-              {Array.from({ length: GRID }, (_, col) => {
-                const state = visibleState(row, col);
-                const k = key(row, col);
-                const solvedCell = solution.get(k);
-                const isGiven = givenSet.has(k);
-                const isWaterGiven = waterGivenSet.has(k);
-                return (
-                  <button
-                    key={k}
-                    data-row={row}
-                    data-col={col}
-                    onMouseDown={(event) => startPaint(row, col, event)}
-                    onMouseEnter={() => enterPaint(row, col)}
-                    onTouchStart={(event) => startPaint(row, col, event)}
-                    className={`aspect-square rounded-md border flex items-center justify-center transition focus:outline-none focus:ring-2 focus:ring-stone-800 ${isGiven ? "border-stone-900 bg-white" : isWaterGiven ? "border-sky-300 bg-sky-50" : "border-stone-300 bg-white hover:bg-stone-50"}`}
-                    aria-label={`Zeile ${row + 1}, Spalte ${col + 1}`}
-                  >
-                    {state === "water" && (
-                      <span className={`flex h-[72%] w-[72%] items-center justify-center rounded-md text-base sm:text-lg font-bold ${isWaterGiven ? "bg-blue-500 text-white" : "bg-blue-400 text-white"}`}>
-                        ~
-                      </span>
-                    )}
-                    {state === "ship" && (
-                      <span className={`flex h-[65%] w-[65%] items-center justify-center text-[0.55rem] sm:text-sm font-bold shadow ${isGiven ? solutionPartShape(solvedCell) : playerPartShape(board, row, col)} ${isGiven ? "bg-stone-900 text-white" : "bg-stone-800 text-white"}`}>
-                        {solved && solvedCell?.letter ? solvedCell.letter : ""}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-              <div key={`right-${row}`} className={`flex items-center justify-center rounded-md text-xs sm:text-sm font-bold bg-white ${checked && Array.from({ length: GRID }, (_, col) => board[key(row, col)] === "ship" ? 1 : 0).reduce((a, b) => a + b, 0) !== rowCounts[row] ? "text-red-600 ring-2 ring-red-500" : "text-stone-900"}`}>
-                {rowCounts[row]}
-              </div>
-            </>
-          ))}
-
-          <div />
-          {colCounts.map((count, col) => {
-            let current = 0;
-            for (let row = 0; row < GRID; row += 1) if (board[key(row, col)] === "ship") current += 1;
-            const wrong = checked && current !== count;
-            return (
-              <div key={`bottom-${col}`} className={`flex h-6 sm:h-7 items-center justify-center rounded-md text-xs sm:text-sm font-bold bg-white ${wrong ? "text-red-600 ring-2 ring-red-500" : "text-stone-900"}`}>
-                {count}
-              </div>
-            );
-          })}
-          <div />
-        </div>
-      </main>
-    </div>
-  );
-}
+  </script>
+</body>
+</html>

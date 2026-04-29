@@ -39,20 +39,20 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 0.5rem;
+      padding: 0.25rem 0.5rem 0.5rem;
       background: #fff;
     }
 
     main {
       width: 100%;
       max-width: 72rem;
-      padding: 0.5rem;
+      padding: 0.25rem 0.5rem 0.5rem;
       background: #fff;
     }
 
     .header {
       text-align: center;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
     }
 
     h1 {
@@ -170,9 +170,10 @@
     .cell {
       aspect-ratio: 1 / 1;
       width: 100%;
-      border: 1px solid var(--stone-300);
+      border: 0;
+      border-top: 1px solid var(--stone-300);
+      border-left: 1px solid var(--stone-300);
       border-radius: 0;
-      margin: -0.5px 0 0 -0.5px;
       -webkit-tap-highlight-color: transparent;
       display: flex;
       align-items: center;
@@ -181,6 +182,14 @@
       cursor: pointer;
       transition: background-color 150ms ease;
       padding: 0;
+    }
+
+    .cell[data-col="11"] {
+      border-right: 1px solid var(--stone-300);
+    }
+
+    .cell[data-row="11"] {
+      border-bottom: 1px solid var(--stone-300);
     }
 
     .cell:hover {
@@ -193,13 +202,21 @@
     }
 
     .cell.given {
-      border-color: var(--stone-300);
       background: var(--stone-50);
     }
 
     .cell.water-given {
-      border-color: var(--sky-300);
+      border-top-color: var(--sky-300);
+      border-left-color: var(--sky-300);
       background: var(--sky-50);
+    }
+
+    .cell.water-given[data-col="11"] {
+      border-right-color: var(--sky-300);
+    }
+
+    .cell.water-given[data-row="11"] {
+      border-bottom-color: var(--sky-300);
     }
 
     .mark {
@@ -352,7 +369,6 @@
     pageElement.addEventListener("mouseleave", stopPaint);
     pageElement.addEventListener("touchend", stopPaint);
     pageElement.addEventListener("touchcancel", stopPaint);
-    gridElement.addEventListener("touchmove", handleTouchMove, { passive: false });
     gridElement.addEventListener("pointermove", handlePointerMove);
     gridElement.addEventListener("pointerup", stopPaint);
     gridElement.addEventListener("pointercancel", stopPaint);
@@ -451,15 +467,9 @@
       paintedCells = new Set();
     }
 
-    function handleTouchMove(event) {
-      if (!paintMode) return;
-      event.preventDefault();
-      const touch = event.touches[0];
-      paintCellAtPoint(touch.clientX, touch.clientY);
-    }
-
     function handlePointerMove(event) {
-      if (!paintMode || event.pointerType !== "touch") return;
+      if (!paintMode) return;
+      if (event.pointerType === "mouse" && event.buttons !== 1) return;
       event.preventDefault();
       paintCellAtPoint(event.clientX, event.clientY);
     }
@@ -669,11 +679,9 @@
       button.dataset.col = col;
       button.setAttribute("aria-label", `Zeile ${row + 1}, Spalte ${col + 1}`);
 
-      button.addEventListener("mousedown", (event) => startPaint(row, col, event));
-      button.addEventListener("mouseenter", () => enterPaint(row, col));
-      button.addEventListener("touchstart", (event) => startPaint(row, col, event), { passive: false });
-      button.addEventListener("pointerdown", (event) => {
-        if (event.pointerType === "touch") startPaint(row, col, event);
+      button.addEventListener("pointerdown", (event) => startPaint(row, col, event));
+      button.addEventListener("pointerenter", (event) => {
+        if (event.pointerType === "mouse" && paintMode && event.buttons === 1) enterPaint(row, col);
       });
 
       if (state === "water") {
